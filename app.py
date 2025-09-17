@@ -13,7 +13,7 @@ Upload your `Coffe_sales.csv` **or** provide a GitHub raw URL.
 The app aggregates to **daily revenue** and fits a **Prophet** model (no saved models).
 """)
 
-default_url = "https://raw.githubusercontent.com/<your-username>/coffee-forecast/main/data/Coffe_sales.csv"
+default_url = "https://raw.githubusercontent.com/RahulBhattacharya1/ai_coffee_forecast/refs/heads/main/data/coffee_sales.csv"
 raw_url = st.text_input("GitHub Raw CSV URL (optional if you upload)", value=default_url)
 
 uploaded = st.file_uploader("Upload Coffe_sales.csv", type=["csv"])
