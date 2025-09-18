@@ -79,24 +79,43 @@ try:
     train = daily.iloc[:-h] if daily.shape[0] > h else daily.copy()
     test  = daily.iloc[-h:] if daily.shape[0] > h else pd.DataFrame(columns=['ds','y'])
 
-    with st.spinner("Training Prophet..."):
-        m, fcst = fit_prophet(train, horizon, weekly=use_weekly, daily_seas=use_daily)
-
+    from datetime import timedelta
+    
     # Join forecasts with actuals
     plot_df = fcst[['ds','yhat','yhat_lower','yhat_upper']].merge(daily, on='ds', how='left')
-    fig_fc = px.line(plot_df, x='ds', y=['y','yhat'], title='Actual vs Forecast')
-    st.plotly_chart(fig_fc, use_container_width=True)
-
-    # Show forecast table for future only
+    
+    # Make horizon effect obvious: show last N past days + all future
+    visible_past_days = 90  # tweak if you like
+    cutoff = daily['ds'].max() - pd.Timedelta(days=visible_past_days)
+    plot_recent = plot_df[plot_df['ds'] >= cutoff].copy()
+    
+    # Future slice & indicators
     future_only = plot_df[plot_df['ds'] > daily['ds'].max()].copy()
     future_only = future_only[['ds','yhat','yhat_lower','yhat_upper']].rename(columns={
         'ds':'Date','yhat':'Forecast','yhat_lower':'Lo','yhat_upper':'Hi'
     })
+    last_forecast_date = plot_df['ds'].max()
+    future_days = future_only.shape[0]
+    
+    st.subheader("Forecast View")
+    st.caption(f"Showing last {visible_past_days} days of history + {future_days} future days "
+               f"(ends **{last_forecast_date.date()}**)")
+    
+    fig_fc = px.line(
+        plot_recent,
+        x='ds',
+        y=['y','yhat'],
+        title='Actual vs Forecast (focused view)'
+    )
+    fig_fc.update_layout(legend_title_text='', xaxis_title='Date', yaxis_title='Revenue')
+    st.plotly_chart(fig_fc, use_container_width=True)
+    
     st.subheader("Forecast (Future Days)")
     st.dataframe(future_only, use_container_width=True)
-
+    st.caption(f"Forecast horizon = **{future_days}** days (slider); last forecast date = **{last_forecast_date.date()}**")
+    
     with st.expander("Trend and Seasonality"):
-        st.write("Trend / weekly / daily components (static images from Prophet).")
+        st.write("Trend / weekly / daily components")
         st.pyplot(m.plot(fcst))
         st.pyplot(m.plot_components(fcst))
 
