@@ -51,36 +51,42 @@ def pick_column(candidates, cols_lower):
 
 def to_daily(df_in: pd.DataFrame) -> pd.DataFrame:
     df = df_in.copy()
-    # Build lowercase->original mapping
+
+    # map lowercase -> original name
     cols_lower = {c.lower(): c for c in df.columns}
 
-    date_col = pick_column(
-        ["date", "order_date", "ds", "timestamp", "datetime"],
-        cols_lower
-    )
-    value_col = pick_column(
-        ["money", "amount", "revenue", "sales", "total", "price", "y"],
-        cols_lower
-    )
+    def pick_column(candidates):
+        for c in candidates:
+            if c in cols_lower:
+                return cols_lower[c]
+        return None
+
+    date_col = pick_column(["date", "order_date", "ds", "timestamp", "datetime"])
+    value_col = pick_column(["money", "amount", "revenue", "sales", "total", "price", "y"])
 
     if date_col is None or value_col is None:
         raise ValueError(
             "CSV must include a date column and a numeric revenue column. "
-            "Accepted names for date: Date/Order_Date/ds/Timestamp/Datetime; "
-            "for value: money/amount/revenue/sales/total/price/y."
+            "Accepted date names: Date/Order_Date/ds/Timestamp/Datetime; "
+            "value names: money/amount/revenue/sales/total/price/y."
         )
 
+    # coerce types
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-    df[value_col] = pd.to_numeric(df[value_col], errors="coerce").fillna(0)
+    df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
     df = df.dropna(subset=[date_col])
+    df[value_col] = df[value_col].fillna(0)
 
+    # group by day using Grouper to ensure a named column
     daily = (
-        df.groupby(df[date_col].dt.date, as_index=False)[value_col]
+        df.groupby(pd.Grouper(key=date_col, freq="D"))[value_col]
           .sum()
-          .rename(columns={date_col: "ds", value_col: "y"})
-          .sort_values("ds")
+          .reset_index()
     )
-    daily["ds"] = pd.to_datetime(daily["ds"])
+
+    # force canonical names regardless of whatever pandas called them
+    daily.columns = ["ds", "y"]
+    daily = daily.sort_values("ds")
     return daily
 
 def fit_prophet(daily_df: pd.DataFrame, horizon_days: int, weekly=True, daily_seas=True):
